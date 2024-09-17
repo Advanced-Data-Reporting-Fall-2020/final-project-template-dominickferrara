@@ -1,0 +1,210 @@
+---
+title: "KHN Data"
+output:
+  html_document:
+    df_print: paged
+---
+Final project copy!
+
+Run packages
+```{r}
+#install.packages("tidyverse")
+library("tidyverse")
+#install.packages("rio")
+library("rio")
+#install.packages("pacman")
+library("pacman")
+#install.packages("rmarkdown")
+library("rmarkdown")
+library("dplyr")
+#install.packages("gghighlight")
+library(gghighlight)
+library(plotly)
+```
+
+```{r}
+getwd()
+```
+
+
+Upload data and create a dataframe called khn
+```{r}
+download.file("https://raw.githubusercontent.com/khnews/2020-underfunded-under-threat-data/master/data/05-local-health-departments-detail.csv", "05-local-health-departments-detail.csv")
+khn <- rio::import("05-local-health-departments-detail.csv")
+```
+
+Create a new df called nc that filters just for nc
+```{r}
+nc <- khn %>%
+  filter(state_code == "NC")
+```
+
+Just take the categories I want and filter out rows without fte data
+```{r}
+summary_nc <- nc %>%
+  select(`year`, `lhd_name`, `lhd_area_type`, `population`, `fte`, `fte_per_100000`, `population`) %>%
+  filter(fte != "NA")
+```
+
+#MAY NOT NEED
+Just show me single counties
+```{r}
+single_counties_summary_nc <-
+  summary_nc %>%
+  filter(lhd_area_type == "single county") 
+
+single_counties_summary_nc
+```
+
+#MAY NOT NEED
+Which lhd_names are only listed once? This may indicate that they merged into a multi county hd
+```{r}
+single_counties_summary_nc %>%
+  group_by(lhd_name) %>%
+  summarize(n()) 
+
+#Bertie
+#Granville
+#McDowell
+#Mitchell
+#Polk
+#Rutherford
+#Vance
+#Yancey
+```
+
+Create a new dataframe that selects the year, health department name, fte per capita and population
+```{r}
+fte_per_capita <- single_counties_summary_nc %>%
+  select(`year`, `lhd_name`, `fte_per_100000`, `fte`, `population`)
+
+fte_per_capita2 <- single_counties_summary_nc %>%
+  select(`year`, `lhd_name`, `fte_per_100000`, `fte`)
+```
+
+Find the averge fte per capita from
+```{r}
+fte_per_capita %>%
+  group_by(lhd_name) %>%
+  summarise(Avg_fte_per_100000 = mean(fte_per_100000)) %>%
+  select(lhd_name, Avg_fte_per_100000) %>%
+  arrange(desc(Avg_fte_per_100000))
+```
+
+% change in fte from 2003-2017 
+```{r}
+fte_per_capita %>%
+  filter(year %in% c('2003', '2017')) %>%
+  # USE THE id_cols argument and set the value to "evertyhing but the set of columns that contains fte and population". This allows each row to be unique to the lhd_name rather than lhd_name + fte + population.
+  pivot_wider(id_cols = -c(fte_per_100000,population), names_from = year, values_from = fte) %>%
+  # DONT NEED NEXT LINE - RT
+ # group_by(lhd_name) %>%
+  mutate(pct_change = 100 * ((`2017` - `2003`)) / `2003`) %>%
+  arrange(desc(pct_change))
+```
+
+Highest and lowest fte per capita and fte in 2017
+```{r}
+fte_per_capita %>%
+  filter(year == "2017") %>%
+  arrange(desc(fte_per_100000))
+
+fte_per_capita %>%
+  filter(year == "2017") %>%
+  arrange(fte)
+```
+
+Scatterplot of population and fte per capita over time, highlighting where fte per capita > 500 
+```{r}
+ggplot(fte_per_capita, aes(x=population, y=fte_per_100000)) + 
+  geom_point(size= 1) +
+   facet_wrap(~year, ncol=4) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+  gghighlight(fte_per_100000 > 500) +
+  labs(title = "FTE Per Capita and Population Over Time", x = "Population", y = "Employees Per Capita")
+```
+```{r}
+ggsave("fte_pc_and_population_graph.png")
+```
+
+line chart #2: X: year, y: fte per capita change over time
+```{r}
+ggplot(fte_per_capita, aes(x=population, y=fte_per_100000)) + 
+  geom_line() +
+  facet_wrap(~year, ncol=4) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+   labs(title = "FTE Per Capita Change Over Time", y ="Number of Employees", x = "Population")
+```
+
+Create a new dataframe for Jones County data
+```{r}
+jones <- nc %>%
+  filter(lhd_name == "Jones County Health Department") %>%
+  select(`year`, `population`, `fte`, `fte_per_100000`)
+```
+
+Create a line chart showing Jones County FTE per capita change over time
+```{r}
+Jones_graph_fte_pc <- plot_ly(jones, x = ~year, y = ~fte_per_100000, type = 'scatter', mode = 'lines')
+
+Jones_graph_fte_pc <- Jones_graph_fte_pc %>%
+  layout(title = "Jones County FTE Per Capita Change Over Time", xaxis = list(title = "Year"), yaxis = list(title = "FTE Per Capita"))
+
+Jones_graph_fte_pc
+```
+
+Create a vector that lists counties in our sample size
+```{r}
+our_counties <- c("Alexander County Health Department", "Anson County Health Department", "Public Health Authority Cabarrus County", "Carteret County Health Department", "Catawba County Health Department", "Cleveland County Health Department", "Dare County Health Department", "Swain County Health Department", "Yadkin County Health Department", "Wayne County Health Department", "Granville-Vance District Health Department", "Greene County Health Department", "Montgomery County Health Department", "Pender County Health Department", "Person County Health Department", "Rowan County Health Department", "Harnett County Health Department", "Madison County Health Department", "Guilford County Department of Public Health", "Henderson County Health Department", "Iredell County Health Department", "Johnston County Health Department", "Lincoln County Health Department", "Pitt County Public Health Center", "Halifax County Department of Health", "Jones County Health Department", "Lenoir County Health Department", "Gaston County Health Department", "Hyde County Health Department", "Mecklenburg County Health Department",  "Rockingham County Health Department", "Chatham County Public Health Department", "Onslow County Health Department", "Franklin County Health Department", "Forsyth County Department of Public Health", "Orange County Health Department", "Brunswick County Health Department", "Richmond County Health Department", "Craven County Health Department", "Jackson County Department of Public Health", "Transylvania County Health Department", "Toe River District", "Union County Health Department", "Lee County Health Department", "Burke County Health Department", "Moore County Health Department", "Stanly County Health Department", "Surry County Health and Nutrition Center", "Wilkes County Health Department", "Martin Tyrell Washington District", "Wake County Human Services")
+```
+
+
+*Ignore for now
+2009-2017 fte per capita change over time for our sample size
+```{r}
+nine_seventeen_fte_pc_change <- nc %>%
+  filter(lhd_name %in% our_counties) %>%
+  filter(year %in% c('2009', '2011', '2013', '2017')) %>%
+  select(year, lhd_name, fte_per_100000) %>%
+group_by(lhd_name) %>%
+  mutate(Avg_fte_per_capita = mean(fte_per_100000)) %>% 
+ pivot_wider(names_from = year, values_from = fte_per_100000) 
+
+ggplot(nine_seventeen_fte_pc_change, aes(x=year, y=Avg_fte_per_capita)) + 
+ geom_line() +
+  facet_wrap(~year, ncol=4)
+  labs(title = "Average FTE Per Capita Change Over Time", y ="Employees Per Capita", x = "Year")
+```
+
+
+% change in fte from 2009-2017 
+```{r}
+nine_seventeen_fte_change <- fte_per_capita2 %>%
+  filter(lhd_name %in% our_counties) %>%
+  filter(year %in% c('2009', '2017')) %>%
+  # USE THE id_cols argument and set the value to "evertyhing but the set of columns that contains fte and population". This allows each row to be unique to the lhd_name rather than lhd_name + fte + population.
+  pivot_wider(id_cols = -c(fte_per_100000), names_from = year, values_from = fte) %>%
+  # DONT NEED NEXT LINE - RT
+ # group_by(lhd_name) %>%
+  mutate(pct_change = 100 * ((`2017` - `2009`)) / `2009`) %>%
+  arrange(desc(pct_change))
+
+ggplot(nine_seventeen_fte_change)+
+  geom_col(aes(x=lhd_name, y=pct_change), stat = "identity") +
+    coord_flip() +
+  labs(title = "FTE Percent Change From 2009-2017", y ="Percent Change", x = "Health Department")
+
+#Need help fixing those labels
+```
+
+Find the average percent change in fte from 2007-2017
+```{r}
+fte_data %>%
+  filter(lhd_name %in% our_counties) %>%
+  filter(year %in% c('2007', '2017')) %>%
+  pivot_wider(id_cols = -c(fte_per_100000, population), names_from = year, values_from = fte) %>%
+  mutate(pct_change = 100 * ((`2017` - `2007`)) / `2007`) %>%
+  mutate(avg = mean(`pct_change`)) %>%
+  arrange(desc(pct_change))
+```
+
